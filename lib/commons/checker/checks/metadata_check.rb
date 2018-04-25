@@ -31,20 +31,29 @@ class Commons::Checker::Checks::MetadataCheck < Commons::Checker::Check
     end
   end
 
-  def check_csv_field_names_upcase
+  def check_csv_field_names
     relevant_field_names = Set.new %w{MS_FB MS_FB_PARE WIKIDATA}
     Dir['boundaries/**/*.csv'].each do |filename|
       field_names = CSV.open(filename).first
-      field_names.each do |field_name|
-        if relevant_field_names.include?(field_name.upcase) && field_name != field_name.upcase
-          report.add_error :field_name_upcase,
-                           filename,
-                           "CSV field name should be uppercase: #{field_name}"
+      relevant_field_names.each do |relevant_field_name|
+        next if relevant_field_name == 'MS_FB_PARE' && filename.end_with?('/country.csv')
 
+        unless field_names.include?(relevant_field_name)
+          miscased_field_names = field_names.select { |field_name| field_name.upcase == relevant_field_name }
+          if miscased_field_names.empty?
+            report.add_warning :field_name_missing,
+                               filename,
+                               "CSV field missing: #{relevant_field_name}"
+          else
+            report.add_error :field_name_upcase,
+                             filename,
+                             "CSV field name should be uppercase: #{miscased_field_names.join(', ')}"
+          end
         end
       end
     end
 
 
   end
+
 end
