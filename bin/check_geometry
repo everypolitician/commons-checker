@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+import functools
+import json
+import os
+import sys
+import textwrap
+
+import fiona
+from shapely.geometry import shape
+from shapely import validation
+
+def get_shapefile_names():
+    names = []
+    for root, dirs, files in os.walk(os.getcwd()):
+        names.extend(os.path.join(root, file) for file in files if file.endswith('.shp'))
+    names.sort()
+    return names
+
+
+@functools.lru_cache()
+def get_boundaries_index_json():
+    with open(os.path.join('boundaries', 'index.json')) as f:
+        return json.load(f)
+
+
+def get_feature_name(name, feature):
+    boundaries_index_json = get_boundaries_index_json()
+    boundary_directory = os.path.relpath(name, os.getcwd()).split(os.path.sep)[1]
+    for entry in boundaries_index_json:
+        if entry['directory'] == boundary_directory:
+            try: # Try English
+                lang_column = entry['name_columns']['lang:en']
+            except KeyError: # If no English, try any other language
+                lang_column = next(iter(entry['name_columns'].values()))
+            return feature['properties'][lang_column]
+    raise ValueError
+
+reports = []
+
+for shapefile_name in get_shapefile_names():
+    shapefile = fiona.open(shapefile_name)
+    for i, feature in enumerate(shapefile, 1):
+        geom = shape(feature['geometry'])
+        if not geom.is_valid:
+            try:
+                feature_name = get_feature_name(shapefile_name, feature)
+            except Exception:
+                feature_name = 'unknown'
+            reports.append({
+                'level': 'error',
+                'filename': os.path.relpath(shapefile_name, os.getcwd()),
+                'message': "Feature {} (_{}_) has an invalid geometry:\n{}".format(
+                         i, feature_name, textwrap.indent(validation.explain_validity(geom), '  '))
+            })
+
+json.dump(reports, sys.stdout, indent=2)
