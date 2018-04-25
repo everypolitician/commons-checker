@@ -9,6 +9,7 @@ end
 require 'commons/checker/report'
 require 'commons/checker/check'
 require 'commons/checker/checks/boundary_check'
+require 'commons/checker/checks/metadata_check'
 
 class Commons::Checker
   def run
